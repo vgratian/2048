@@ -7,10 +7,10 @@
 #include <X11/Xatom.h>
 
 // public functions
+int open();
+void close();
 int find_wondow(const char*, int);
-
-unsigned long* scan_pixels(int*);
-
+unsigned long* scan_pixels();
 void fake_key_event(const char*);
 
 // private functions

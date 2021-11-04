@@ -21,9 +21,10 @@ var (
 func FindWindow(name string, size int) error {
     boardSize = size
     ptr := C.CString(name)
+
     defer C.free(unsafe.Pointer(ptr))
 
-    if C.find_window(ptr) == 0 {
+    if C.find_window(ptr, C.int(size)) == 0 {
         return nil
     }
     return errors.New("window [" + name + "] not found"
