@@ -14,6 +14,8 @@ unsigned long* scan_pixels();
 void fake_key_event(const char*);
 
 // private functions
-static unsigned long _find_window(unsigned long, const char*);
-static void _fix_coordinates();
+static Window find_window_recursively(Window, const char*);
+static int get_coordinates();
+static int *get_gtk_frame_extents();
+static void normalize_coordinates(int, int, int, int);
 
