@@ -8,6 +8,8 @@ static struct {
     int y;
     int width;
     int height;
+    int display_w;
+    int display_h;
 } attrs; // position of target window: x, y, width and height
 static int **coords; // coordinates of the tiles in the grid
 static int N; // size of the grid
@@ -17,12 +19,16 @@ static int N; // size of the grid
 int open_x_socket() {
     dpy = XOpenDisplay(NULL);
     //if ( (dpy = XOpenDisplay(NULL) != NULL ) ) {
-    if ( dpy != NULL ) {
-        root = XDefaultRootWindow(dpy);
-        printf("Hello, we connected to the X server!\n");
-        return 0;
+    if ( dpy == NULL ) {
+        return 1;
     }
-    return 1;
+    printf("connected to the X server\n");
+    root = XDefaultRootWindow(dpy);
+    int screen_num = XDefaultScreen(dpy);
+    attrs.display_w = XDisplayWidth(dpy, screen_num);
+    attrs.display_h = XDisplayHeight(dpy, screen_num);
+    printf("fixed screen size [%d x %d]\n", attrs.display_w, attrs.display_h);
+    return 0;
 }
 
 // Close connection to the X server
@@ -99,7 +105,8 @@ unsigned long* scan_pixels() {
 
     printf("requesting image for x=%d y=%d, width=%d height=%d\n", attrs.x, attrs.y, attrs.width, attrs.height);
 
-    image = XGetImage(dpy, root, attrs.x, attrs.y, attrs.width, attrs.height, AllPlanes, XYPixmap);
+    //image = XGetImage(dpy, root, attrs.x, attrs.y, attrs.width, attrs.height, AllPlanes, XYPixmap);
+    image = XGetImage(dpy, root, 0, 0, attrs.display_w, attrs.display_h, AllPlanes, XYPixmap);
     if (image == NULL) {
         return NULL;
     }

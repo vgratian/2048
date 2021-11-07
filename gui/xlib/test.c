@@ -85,43 +85,33 @@ int test_scan_pixels() {
     }
 
     // all but two tiles should be white
-
     unsigned long a_pixel, b_pixel;
     int a_count, b_count;
     int i, ok;
     int n = GAME_SIZE * GAME_SIZE;
-    a_count = b_count = 0;
+    a_count = 0;
+    b_count = 0;
 
-    printf("  => got pixels:\n");
+    printf("  => got %d pixels:\n", n);
 
     for (i=0; i<n; i++) {
-        printf(" %lu", pixels[i]);
-        if (i % GAME_SIZE == 0) {
-            printf("\n");
-        }
+        printf(" %lu%s", pixels[i], ((i+1) % GAME_SIZE == 0) ? "\n" : "");
 
-        if ( a_count == 0 ) {
+        if ( a_count != 0 && pixels[i] == a_pixel ) {
+            a_count++;
+        } else if ( b_count != 0 && pixels[i] == b_pixel ) {
+            b_count++;
+        } else if ( a_count == 0 ) {
             a_pixel = pixels[i];
             a_count = 1;
-            continue;
-        }
-        
-        if ( b_count == 0 ) {
+        } else if ( b_count == 0 ) {
             b_pixel = pixels[i];
             b_count = 1;
-            continue;
         }
 
-        if ( pixels[i] == a_pixel ) {
-            a_count++;
-            continue;
-        }
-
-        if ( pixels[i] = b_pixel ) {
-            b_count++;
-            continue;
-        }
+        //printf(" (%2d) %9lu => a = %3d b = %3d\n", i, pixels[i], a_count, b_count);
     }
+    printf("\n");
 
     ok = 0;
 
@@ -130,12 +120,21 @@ int test_scan_pixels() {
         ok = 1;
     }
 
-    printf("  => number of white tiles:     %d\n", (a_count < b_count) ? a_count : b_count);
-    printf("  => number of non-white tiles: %d\n", (a_count < b_count) ? b_count : a_count);
+    if (a_count > b_count) {
+        printf("  => white  [%lu] tiles: %d \n", a_pixel, a_count);
+        printf("  => yellow [%lu] tiles: %d \n", b_pixel, b_count);
+    } else {
+        printf("  => white  [%lu] tiles: %d \n", b_pixel, b_count);
+        printf("  => yellow [%lu] tiles: %d \n", a_pixel, a_count);
+    }
  
     if (a_count != 2 && b_count != 2) {
         printf("  => expected 2 white tiles\n");
         ok = 1;
+    }
+
+    if ( ok == 0 ) {
+        printf("  => OK\n");
     }
 
     return ok;
@@ -151,7 +150,8 @@ int test_fake_key_event() {
 
     const char *moves[4] = {"Up", "Down", "Left", "Right",};
     for (int i=0; i<4; i++) {
-        printf("  => %s\n", moves[i]);
+        printf("  => [%s]\n", moves[i]);
+        sleep(1);
         fake_key_event(moves[i]);
     }
 
