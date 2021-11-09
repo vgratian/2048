@@ -1,3 +1,8 @@
+/* This file tests/debugs the public methods of xlib.c independent from the 
+ * main Go-package. It only makes sense to run this code when gnome-2048
+ * is installed on the system.
+ */
+
 #include "xlib.h"
 #include "xlib.c"
 
@@ -11,11 +16,14 @@ const char *COLOR_END = "\033[0m";
 
 const int GAME_SIZE = 4;
 
+unsigned long *pixels;
+
 typedef int (*test)(void);
 
+
+// Check if "gnome-2048" is installed and run in the background.
 int test_exec_program() {
-    printf(" test_exec_program:%s\n", COLOR_END);
-    printf("  => checking if program [%s] is available\n", GAME_NAME);
+    printf(" test_exec_program:%s [%s]\n", COLOR_END, GAME_NAME);
 
     FILE *fp;
     char path[STR_MAX_SIZE];
@@ -28,6 +36,7 @@ int test_exec_program() {
         return 1;
     }
 
+    // read path of executable from pipe
     if ( (fp = popen(cmd, "r")) == NULL) {
         fprintf(stderr, "  popen() failed\n");
         return 1;
@@ -41,6 +50,7 @@ int test_exec_program() {
         }
     }
 
+    // error here means which exited with non-0 status
     if (pclose(fp) != 0 ) {
         fprintf(stderr, "  program [%s] not found\n");
         return 1;
@@ -63,22 +73,22 @@ int test_exec_program() {
             sleep(1);
             return 0;
     }
-
 }
 
-int test_open_x_socket() {
-    printf(" test_open_x_socket:%s\n", COLOR_END);
-    return open_x_socket();
-}
-
-int test_find_x_window() {
+// Check if we are able to find target window
+// and fix its coordinates
+int test_find_window() {
     printf(" test_find_x_window:%s\n", COLOR_END);
-    return find_x_window(X_WINDOW_NAME, GAME_SIZE);
+    return find_window(X_WINDOW_NAME, GAME_SIZE);
 }
 
+// Check if we are able to take a screenshot and
+// scan pixels of the game board. (Initially the
+// board should contain all, but 2 non-white tiles,
+// so we can check if the pixels are consistent.
 int test_scan_pixels() {
     printf(" test_scan_pixels:%s\n", COLOR_END);
-    unsigned long *pixels = scan_pixels();
+    pixels = scan_pixels();
     if (pixels == NULL) {
         printf("  => scan_pixels returned NULL\n");
         return 1;
@@ -92,7 +102,7 @@ int test_scan_pixels() {
     a_count = 0;
     b_count = 0;
 
-    printf("  => got %d pixels:\n", n);
+    printf("  => checking %d pixels:\n", n);
 
     for (i=0; i<n; i++) {
         printf(" %lu%s", pixels[i], ((i+1) % GAME_SIZE == 0) ? "\n" : "");
@@ -108,8 +118,6 @@ int test_scan_pixels() {
             b_pixel = pixels[i];
             b_count = 1;
         }
-
-        //printf(" (%2d) %9lu => a = %3d b = %3d\n", i, pixels[i], a_count, b_count);
     }
     printf("\n");
 
@@ -133,18 +141,34 @@ int test_scan_pixels() {
         ok = 1;
     }
 
-    if ( ok == 0 ) {
-        printf("  => OK\n");
+    return ok;
+}
+
+// This test should run after test_fake_key_event(),
+// so we expect that the tiles have changed.
+int test_scan_pixels2() {
+    printf(" test_scan_pixels2:%s check if board changed after moves\n", COLOR_END);
+    int ok = 1;
+    int i;
+    int n = GAME_SIZE * GAME_SIZE;
+    unsigned long *pixels2 = scan_pixels();
+    if (pixels2 == NULL) {
+        printf("  => scan_pixels returned NULL\n");
+        return 1;
+    }
+
+    for (i=0; i<n; i++) {
+        if ( pixels2[i] != pixels[i] ) {
+            ok = 0;
+            break;
+        }
     }
 
     return ok;
 }
 
-int test_scan_pixels2() {
-    printf(" test_scan_pixels2:%s (skipped)\n", COLOR_END);
-    return 0;
-}
-
+// This is a pseudo-test, since we don't really know
+// if the key events really take an effect.
 int test_fake_key_event() {
     printf(" test_fake_key_event:%s\n", COLOR_END);
 
@@ -152,34 +176,36 @@ int test_fake_key_event() {
     for (int i=0; i<4; i++) {
         printf("  => [%s]\n", moves[i]);
         sleep(1);
-        fake_key_event(moves[i]);
+        if (fake_key_event(moves[i], 50) != 0) {
+            return 1;
+        }
     }
 
     return 0;
 }
 
-int num_tests = 6;
-
 test tests[] = {
     &test_exec_program,
-    &test_open_x_socket,
-    &test_find_x_window,
+    &test_find_window,
     &test_scan_pixels,
     &test_fake_key_event,
     &test_scan_pixels2,
+    NULL,
 };
 
 int main() {
 
-    int i;
-
-    for (i=0; i<num_tests; i++) {
-        printf("%sTEST %-3d:", COLOR_BOLD, i);
-        if ( tests[i]() != 0 ) {
-            return 1;
+    int i, ok;
+    i = 0;
+    while (tests[i] != NULL) {
+        printf(" =%stest %-2d:", COLOR_BOLD, i);
+        if ( (ok = tests[i]()) != 0 ) {
+            printf("=FAIL\n");
+            break;
         }
+        printf("=PASS\n");
+        i++;
     }
 
-    printf("\n%s=> all tests passed%s\n", COLOR_BOLD, COLOR_END);
-    return 0;
+    return ok;
 }

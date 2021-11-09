@@ -1,240 +1,255 @@
+/* 
+ * This script uses methods from XLIB (libx11) to find and interact with
+ * an X window. Most of xlib functions are pretty straigtforward, except
+ * when you need to work with EWMH properties (e.g. GTK_FRAME_EXTENTS).
+ * I looked at the source codes of "wmctrl" and "xprop" for help.
+ *
+ * Most of the public methods return 0 on success and a positive integer
+ * on failure (1 usually means failed to connect to X).
+ *
+ * TODO: implement verbose/debug mode
+ *   for now, you can remove all "// DEBUG: " comments
+ *   to get see what's happening.
+*/
+
 #include "xlib.h"
 
-Display *dpy;
-Window root, target;
-
+// position of target window: x, y, width and height
 static struct {
     int x;
     int y;
-    int width;
-    int height;
-    int display_w;
-    int display_h;
-} attrs; // position of target window: x, y, width and height
-static int **coords; // coordinates of the tiles in the grid
-static int N; // size of the grid
+    int w;
+    int h;
+} board;
 
-// Open connection to the X server and fix the root window
-// Returns 0 on success.
-int open_x_socket() {
-    dpy = XOpenDisplay(NULL);
-    //if ( (dpy = XOpenDisplay(NULL) != NULL ) ) {
-    if ( dpy == NULL ) {
-        return 1;
-    }
-    printf("connected to the X server\n");
-    root = XDefaultRootWindow(dpy);
-    int screen_num = XDefaultScreen(dpy);
-    attrs.display_w = XDisplayWidth(dpy, screen_num);
-    attrs.display_h = XDisplayHeight(dpy, screen_num);
-    printf("fixed screen size [%d x %d]\n", attrs.display_w, attrs.display_h);
-    return 0;
-}
+// screen size
+static struct {
+    unsigned int w;
+    unsigned int h;
+} screen;
 
-// Close connection to the X server
-void close_x_socket() {
-    //XFree(attrs);
-    XCloseDisplay(dpy);
-}
+// coordinates of the tiles in the grid
+static int **tiles;
 
-int find_something_else(char* name, int size) {
-    printf("Okay okay ... [%s] (%d)\n", name, size);
-
-    return find_x_window(name, size);
-}
+// size of the grid
+static int N;
 
 // Find window and fix its XID and position. We expect that this window contains
 // size x size tiles and we will try to approximate their coordinates.
-int find_x_window(const char* name, int size) {
+//
+// This method should be called once before all the others.
+int find_window(const char* name, int size) {
 
+    // fix expected board size
     N = size;
 
-    // find XID of the window
-    if ( (target = find_window_recursively(root, name)) == 0 ) {
-        printf("recursively not found\n");
+    // connect to X and fetch some basic info
+    Display *dpy;
+    Window root, target;
+    int screen_num;
+
+    if ( (dpy = XOpenDisplay(NULL)) == NULL ) {
+        // DEBUG: printf("failed to connect to X server\n");
         return 1;
     }
 
-    printf("found target window [0x%x]\n", target);
+    // DEBUG: printf("connected to the X server\n");
 
-    // find position of the window, populates static array *pos[4]*
-    // with values for x, y (top-left pixel), width, height
-    if (get_coordinates() != 0) {
-        printf("coordinates not found\n");
+    root = XDefaultRootWindow(dpy);
+
+    screen_num = XDefaultScreen(dpy);
+    screen.w = XDisplayWidth(dpy, screen_num);
+    screen.h = XDisplayHeight(dpy, screen_num);
+
+    // DEBUG: printf("fixed screen size [%d x %d]\n", screen.w, screen.h);
+
+    // find XID of the target window
+    if ( (target = _find_window(dpy, root, name)) == 0 ) {
+        // DEBUG: printf("target window [%s] not found\n", name);
         return 2;
     }
 
-    /*
-    if (attrs == NULL) {
-        printf("fuck, null pointer!\n");
+    // DEBUG: printf("found target window with XID [0x%x]\n", target);
+
+    // fix position of the target window
+    if (get_coordinates(dpy, target) != 0) {
+        // DEBUG: printf("coordinates not found\n");
         return 3;
     }
-    */
 
-    printf("x=%d y=%d width=%d height=%d\n", attrs.x, attrs.y, attrs.width, attrs.height);
+    // DEBUG: printf("initial window position: x=%d y=%d (top-left pixel); w=%d h=%d\n",
+    // DEBUG:         board.x, board.y, board.w, board.h);
 
     // the width and height values are sometimes larger than the actual
     // window, so try to find the value for GTK frame extents to normalize
     // them. If we can't get frames, we just assume they don't exist.
     int frames[4];
-    printf("get_gtk_frame_extents\n");
-    get_gtk_frame_extents(&frames[0], &frames[1], &frames[2], &frames[3]);
-    printf("frames = %d, %d, %d, %d\n", frames[0], frames[1], frames[2], frames[3]);
+    frames[0] = frames[1] = frames[2] = frames[3] = 0;
+    get_gtk_frame_extents(dpy, target, frames);
 
-    printf("normalize_coordinates\n");
-    normalize_coordinates(frames[0], frames[1], frames[2], frames[3]);
+    // DEBUG: printf("GTK frames: left=%d, right=%d, up=%d, down=%d\n",
+    // DEBUG:        frames[0], frames[1], frames[2], frames[3]);
 
-    printf("attrs: x=%d, y=%d, width=%d, height=%d\n", attrs.x, attrs.y, attrs.width, attrs.height);
+    normalize_coordinates(frames);
 
-    for (int i=0; i<N*N; i++) {
-        printf(" %d - (%d, %d)\n", i, coords[i][0], coords[i][1]);
-    }
-    printf("\n\n");
-    printf("find_x_window: ALL DONE\n");
+    // DEBUG:  printf("normalized position: x=%d, y=%d (bottm-right pixel); w=%d, h=%d\n",
+    // DEBUG:        board.x, board.y, board.w, board.h);
+
+    // DEBUG: printf("coordinates of %dx%d tiles:\n", N, N);
+    // DEBUG: for (int i=0; i<N*N; i++) {
+    // DEBUG:     printf(" (%d, %d)", tiles[i][0], tiles[i][1]);
+    // DEBUG:     if ( (i+1) % N == 0 ) {
+    // DEBUG:         printf("\n");
+    // DEBUG:     }
+    // DEBUG: }
+    // DEBUG: printf("\n");
+
+    XCloseDisplay(dpy);
     return 0;
 }
 
 // Get the pixel values of the tiles in the grid
 unsigned long* scan_pixels() {
 
-    printf("scan_pixels() :: start\n");
-
-    //unsigned long* pixels;
-    int i;
-    XImage *image;
-
-    printf("requesting image for x=%d y=%d, width=%d height=%d\n", attrs.x, attrs.y, attrs.width, attrs.height);
-
-    //image = XGetImage(dpy, root, attrs.x, attrs.y, attrs.width, attrs.height, AllPlanes, XYPixmap);
-    image = XGetImage(dpy, root, 0, 0, attrs.display_w, attrs.display_h, AllPlanes, XYPixmap);
-    if (image == NULL) {
+    Display *dpy;
+    if ( (dpy = XOpenDisplay(NULL)) == NULL ) {
+        // DEBUG: printf("failed to connect to X server\n");
         return NULL;
     }
 
-    int size = N*N;
-    //pixels = (unsigned long*) malloc(N*N);
-    //int (*coords)[2] = malloc(sizeof(int[N*N][2]));
-    unsigned long *pixels;
-    unsigned long value;
-    pixels = (unsigned long *) malloc(N*N*sizeof(unsigned long));
+    // DEBUG: printf("requesting image for x=%d y=%d, w=%d h=%d\n",
+    // DEBUG:        board.x, board.y, board.w, board.h);
 
-    /*
-    printf("created array:\n");
-    for (i=0; i<size; i++)
-        printf("%3d: < %d, %d > => %-10lu\n", i, coords[i][0], coords[i][1], pixels[i]);
-    */
-
-
-    printf("checking %d pixels (%d x %d)....\n", size, N, N);
-
-    for (i=0; i<size; i++) {
-        printf(" %d => ", i);
-        printf("(%d, %d)", coords[i][0], coords[i][1]);
-        //value = XGetPixel(image, coords[0][0]+1000, coords[0][1]+1000);
-        value = XGetPixel(image, coords[i][0], coords[i][1]); // x, y coordinate of the grid
-        printf(" => %lu", value);
-        pixels[i] = value;
-        printf(" => ok\n");
+    XImage *image = XGetImage(dpy, XDefaultRootWindow(dpy), 0, 0,
+            screen.w, screen.h, AllPlanes, ZPixmap);
+    if (image == NULL) {
+        // DEBUG: printf("failed to get image\n");
+        return NULL;
     }
 
-    printf("all done:\n");
+    int i;
+    int size = N*N;
+    unsigned long *pixels;
+
+    pixels = (unsigned long *) malloc(N*N*sizeof(unsigned long));
+
+    // DEBUG: printf("scanning %d pixels (%d x %d)....\n", size, N, N);
+
+    for (i=0; i<size; i++) {
+        // scan pixels at the (x,y) coordinate of each tile
+        pixels[i] = XGetPixel(image, tiles[i][0], tiles[i][1]);
+        // DEBUG: printf(" %2d (%3d, %3d): %lu\n", i, tiles[i][0], tiles[i][1], pixels[i]);
+    }
+
+    XCloseDisplay(dpy);
+    XDestroyImage(image);
 
     return pixels;
 }
 
-void fake_key_event(const char* key) {
+int fake_key_event(const char* key, unsigned long delay) {
+    // delay is in milliseconds
 
-    unsigned long delay = 100; // 0.1 second
+    Display *dpy;
+    KeyCode kc;
+    KeySym ks;
 
-    KeyCode keycode = XKeysymToKeycode(dpy, XStringToKeysym(key));
+    if ( (dpy = XOpenDisplay(NULL)) == NULL ) {
+        return 1;
+    }
 
-    XTestFakeKeyEvent(dpy, keycode, False, delay); // key is not pressed
+    if ( (ks = XStringToKeysym(key)) == NoSymbol ) {
+        return 2;
+    }
+
+    if ( (kc = XKeysymToKeycode(dpy, ks)) == 0 ) {
+        return 2;
+    }
+
+    // key is released
+    XTestFakeKeyEvent(dpy, kc, False, delay);
     XFlush(dpy);
-    XTestFakeKeyEvent(dpy, keycode, True, delay);  // key is pressed
+
+    // key is pressed
+    XTestFakeKeyEvent(dpy, kc, True, delay);
     XFlush(dpy);
-    XTestFakeKeyEvent(dpy, keycode, False, delay); // key is released
+
+    // key is released
+    XTestFakeKeyEvent(dpy, kc, False, delay);
     XFlush(dpy);
+
+    XCloseDisplay(dpy);
+
+    return 0;
 }
 
-static Window find_window_recursively(Window window, const char* target_name) {
-    char *name;
-    XFetchName(dpy, window, &name);
+static Window _find_window(Display *dpy, Window win, const char* name) {
+    char *window_name;
+    XFetchName(dpy, win, &window_name);
 
-    /*
-    if (name != NULL) {
-        printf(" -> [%s]\n", name);
-    }
-    */
-
-    if (name != NULL && strcmp(name, target_name) == 0) {
-        return window;
+    if (window_name != NULL && strcmp(window_name, name) == 0) {
+        return win;
     }
 
     Window root_return, parent_return, child_match;
     Window *children;
-    int i, num;
+    int i, n;
 
-    XQueryTree(dpy, window, &root_return, &parent_return, &children, &num);
+    XQueryTree(dpy, win, &root_return, &parent_return, &children, &n);
+
     if (children != NULL) {
-        for (i=0; i<num; i++) {
-            child_match = find_window_recursively(children[i], target_name);
+        for (i=0; i<n; i++) {
+            child_match = _find_window(dpy, children[i], name);
             if ( child_match ) {
                 break;
             }
         }
         XFree(children);
-        if (i < num) {
+        if (i < n) {
             return child_match;
         }
     }
     
-    return None;
+    return 0;
 }
 
-static int get_coordinates() {
-    printf("fetching window [0x%x] attributes....\n", target);
+static int get_coordinates(Display *dpy, Window target) {
     XWindowAttributes a;
-    int result;
 
-    result = XGetWindowAttributes(dpy, target, &a);
-
-    printf("x=%d, y=%d, width=%d, height=%d\n", a.x, a.y, a.width, a.height);
-
-    if (result == 1) {
-        printf("%d - OK!\n", result);
-        attrs.x = a.x;
-        attrs.y = a.y;
-        attrs.width = a.width;
-        attrs.height = a.height;
-        return 0;
+    if ( XGetWindowAttributes(dpy, target, &a ) != 1 ) {
+        return 1;
     }
-    printf("%d - FAIL\n", result);
-    return 1;
+
+    board.x = a.x;
+    board.y = a.y;
+    board.w = a.width;
+    board.h = a.height;
+
+    return 0;
 }
 
-static void normalize_coordinates(int frame_left, int frame_right, int frame_up, int frame_down) {
-
-    printf("normalize_coordinates() :: start\n");
+static void normalize_coordinates(int frames[4] /* left right up down */ ) {
 
     int x, y, width, tile_width, margin;
     // first normalize the size and position of the window
     // by removing the frame extents
-    attrs.x += frame_left;
-    attrs.y += frame_up;
+    board.x += frames[0];
+    board.y += frames[2];
 
-    attrs.width -= (frame_left + frame_right);
-    attrs.height -= (frame_up + frame_down);
+    board.w -= (frames[0] + frames[1]);
+    board.h -= (frames[2] + frames[3]);
 
-    printf("attrs: x=%d, y=%d, width=%d, height=%d\n", attrs.x, attrs.y, attrs.width, attrs.height);
+    // DEBUG: printf("attrs: x=%d, y=%d, width=%d, height=%d\n",
+    // DEBUG:        board.x, board.y, board.w, board.h);
 
     // approximate the coordinates of the grid
     // it should be roughly a square, so we strip the top bar
-    width = (attrs.width < attrs.height) ? attrs.width : attrs.height;
+    width = (board.w < board.h) ? board.w : board.h;
     // height == width, no need to store it
 
     // fix x,y as the bottom-rigth pixel
-    x = attrs.x + attrs.width;
-    y = attrs.y + attrs.height;
+    x = board.x + board.w;
+    y = board.y + board.h;
 
     // a gross approximation of the margins between tiles
     margin = width / 80;
@@ -244,9 +259,7 @@ static void normalize_coordinates(int frame_left, int frame_right, int frame_up,
     tile_width = width / N;
 
     // finally, fix coordinates of the NxN tiles
-    //static int (*coords)[2] = malloc(sizeof(int[N*N][2]));
-    //**coords = malloc(sizeof(int[N*N][2]));
-    coords = malloc(N * N * sizeof(int *));
+    tiles = malloc(N * N * sizeof(int *));
 
     // ensure that when scanning pixel colors, we never hit the digit
     // (in the center) or the margin/border between tiles.
@@ -254,41 +267,31 @@ static void normalize_coordinates(int frame_left, int frame_right, int frame_up,
 
     int k, m;
     // here I was tired, so didn't come up with a more efficient iteration
-    printf("generating pixel coordinates...\n");
 
     m = 0;
     for (int i=N*N-1; i>0; i-=N) {
-        printf(" i=2%d\n", i);
+        // DEBUG: printf(" i=%2d\n", i);
         k = 0;
         for (int j=i; j>i-N; j--) {
-            coords[j] = malloc(2 * sizeof(int));
-            printf("   i=%2d j=%2d", i, j);
-            coords[j][0] = x - ( k * tile_width ) - offset;
-            coords[j][1] = y - ( m * tile_width ) - offset;
-            printf(" ==> (%3d %3d)\n", coords[j][0], coords[j][1]);
+            tiles[j] = malloc(2 * sizeof(int));
+            // DEBUG: printf("   i=%2d j=%2d", i, j);
+            tiles[j][0] = x - ( k * tile_width ) - offset;
+            tiles[j][1] = y - ( m * tile_width ) - offset;
+            // DEBUG: printf(" ==> (%3d %3d)\n", tiles[j][0], tiles[j][1]);
             k++;
         }
         m++;
     }
 }
 
-/* welcome to hell */
-static long extract_value(const char **ptr, int *length) {
-    long value;
-    value = * (const unsigned short *) *ptr & 0xffffffff;
-    *ptr += sizeof(long);
-    *length -= sizeof(long);
-    return value;
-}
+// This function and extract_value() are partially copied from:
+// xprop 1.2.5: Get_Window_Property_Data_And_Type()
+// wmctrl 1.07: get_property()
+static int get_gtk_frame_extents(Display *dpy, Window target, int frames[4]) {
 
-static int get_gtk_frame_extents(int *left, int *right, int *up, int *down) {
-
-    //const char* buffer;
     const char* buffer;
     unsigned char *data;
-    //long length;
-    int size, result;
-    int frames[4];
+    int size;
     unsigned long nitems, bytes_after;
     Atom xa_property, xa_type;
 
@@ -300,35 +303,33 @@ static int get_gtk_frame_extents(int *left, int *right, int *up, int *down) {
         return 1;
     }
 
-    result = XGetWindowProperty(dpy, target, xa_property, 0, 1024, False,
-            XA_CARDINAL, &xa_type, &size, &nitems, &bytes_after, &data);
-
-    if (result != Success) {
-        return 1;
+    if ( XGetWindowProperty(dpy, target, xa_property, 0, 1024,
+            False, XA_CARDINAL, &xa_type, &size, &nitems,
+            &bytes_after, &data) != Success) {
+        return 2;
     }
 
     // expecting 4 longs
     if (size != 32 ) {
-        return 1;
+        return 3;
     }
 
     buffer = (const char*) data;
-    int i = 0;
     int length = (int) size;
-    long value;
+    int i = 0;
 
     while (length >= size/8) {
-        //value = * (const unsigned short *) buffer & 0xffffffff;
-        //*buffer += sizeof(long);
-        //frames[i] = (int) value;
         frames[i] = (int) extract_value(&buffer, &length);
         i++;
     }
 
-    *left = frames[0];
-    *right = frames[1];
-    *up = frames[2];
-    *down = frames[3];
-
     return 0;
+}
+
+static long extract_value(const char **ptr, int *length) {
+    long value;
+    value = * (const unsigned short *) *ptr & 0xffffffff;
+    *ptr += sizeof(long);
+    *length -= sizeof(long);
+    return value;
 }
