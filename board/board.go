@@ -18,6 +18,8 @@ var (
 	N int = 16
 	// The four possible moves for the player
 	Moves = [4]string{"Left", "Down", "Right", "Up"}
+	// Old ordering:
+	// Moves = []string{"Up", "Down", "Left", "Right"}
 )
 
 // New returns a new Board instance with all tile values initialized
@@ -49,8 +51,8 @@ func Encode(d int) uint8 {
 	}
 	if d%2 == 0 {
 		return uint8(math.Log2(float64(d)))
-        // this line can be optimized, but that's not so urgent
-        // since the function is used infrequently.
+		// this line can be optimized, but that's not so urgent
+		// since the function is used infrequently.
 	}
 	panic(fmt.Sprintf("invalid number for a tile: %d", d))
 }
