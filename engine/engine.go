@@ -123,8 +123,7 @@ func singleSearch(brd board.Board, depth uint32) {
 func playOpponent(b board.Board) (uint8, board.Board) {
     indices := b.IndicesOfZeros()
     index := indices[rand.Intn(len(indices))]
-    b.Insert(index, uint8(1))
-    return index, b
+    return index, b.Insert(index, uint8(1))
 }
 
 func AdjustDepth(b board.Board) uint32 {

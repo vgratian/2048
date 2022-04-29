@@ -9,7 +9,7 @@ func main() {
 
     params.Init()
 
-    if params.SingleSearch() {
+    if params.SingleSearch {
         engine.SingleSearch()
     } else { // default mode
         engine.SelfPlay()

@@ -59,7 +59,7 @@ func Init() error {
     flag.IntVar(&Size, "bs", Size, "Board size")
     //flag.StringVar(&Engine, "engine", Engine, "Engine that will play the game")
     //flag.StringVar(&Eval, "eval", Eval, "Engine evaluation function")
-    flag.IntVar(&MaxDepth, "sd", MaxDepth, "Default search depth")
+    flag.IntVar(&MaxDepth, "md", MaxDepth, "Default search depth")
     flag.IntVar(&MaxMoves, "mm", MaxMoves, "Limit number of moves to play")
     flag.IntVar(&TurnDelay, "td", TurnDelay, "Delay between each turn played (milliseconds)")
     flag.IntVar(&StartDelay, "sd", StartDelay, "Delay before starting to play (seconds)")

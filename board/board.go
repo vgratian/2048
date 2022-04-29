@@ -143,6 +143,8 @@ func (x Board) IndicesOfZeros() []uint8 {
 	return indices
 }
 
-func (x Board) Insert(i, n uint8) {
-    x[int(i)] = n
+func (x Board) Insert(i, n uint8) Board {
+    b := x.Copy()
+    b[int(i)] = n
+    return b
 }
