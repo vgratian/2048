@@ -11,7 +11,6 @@ Work-in-progress:
 * re-inforcment learning
 * play agains a GUI-program ([gnome-2048](https://github.com/GNOME/gnome-2048))
 
-
 ### Requirements
 **Required:**
 * Go >= 1.17
@@ -22,3 +21,11 @@ Work-in-progress:
 
 **Optional:**
 * Playing against GUI requires [libX11](https://gitlab.freedesktop.org/xorg/lib/libx11).
+
+### Build and usage
+Build with go:
+```sh
+go build main.go -o 2048
+```
+
+Run `./2048` to start the engine with default parameters or run `./2048 -help` for available options.
