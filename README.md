@@ -25,7 +25,7 @@ Work-in-progress:
 ### Build and usage
 Build with go:
 ```sh
-go build main.go -o 2048
+go build -o 2048 main.go
 ```
 
 Run `./2048` to start the engine with default parameters or run `./2048 -help` for available options.
