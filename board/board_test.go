@@ -26,7 +26,7 @@ type testGameOver struct {
 // - initial decimal values representing the tiles
 // - binary encoding that we expect
 // - board state after the 4 moves (decimal)
-// - score change after each if the 4 moves
+// - score change after each move
 var (
     a = NewEncode([]int{
 		0, 0, 2, 2,
