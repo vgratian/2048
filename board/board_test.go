@@ -4,18 +4,18 @@ import (
 	"testing"
 )
 
-// Initially package was named "grid", therefore
-// you have "Grid" instead of "Board"
+// For testing board state and score change after 4 moves
 type testBoard struct {
     board Board
     // expected encoding of the board
     encoded []uint8
     // expected results of the 4 moves
     moves [4][]int
-    // expected surplus scores
+    // expected score change
     scores [4]uint32
 }
 
+// For testing if game is over at current state
 type testGameOver struct {
     board Board
     forPlayer bool
@@ -23,10 +23,10 @@ type testGameOver struct {
 }
 
 // boards for testing, each board has:
-// - initial decimal tile values
+// - initial decimal values representing the tiles
 // - binary encoding that we expect
 // - board state after the 4 moves (decimal)
-// - score that we get for each move
+// - score change after each if the 4 moves
 var (
     a = NewEncode([]int{
 		0, 0, 2, 2,
@@ -209,6 +209,7 @@ var (
 )
 
 func TestEncoding(t *testing.T) {
+    t.Log("Testing encoding from decimal (x) to binarry representation (n^x)")
     for i, x := range testBoards {
         if ! x.board.Equals(x.encoded) {
             t.Errorf("Encoding board #%d: FAIL", i)
@@ -219,13 +220,13 @@ func TestEncoding(t *testing.T) {
 }
 
 func TestMoves(t *testing.T) {
-
+    t.Logf("Testing state and score change after %d moves on %d boards", len(Moves), len(testBoards))
     for i, move := range Moves {
         t.Logf("=> Testing Move: %s", move)
 
-        for _, x := range testBoards {
+        for j, x := range testBoards {
 
-            t.Logf("test Board #%d: %v", i, x.board.Decode())
+            t.Logf("test Board #%d: %v", j, x.board.Decode())
 
             movedBoard := x.board.DoMove(uint8(i))
             score := movedBoard.Score() - x.board.Score()
@@ -245,11 +246,12 @@ func TestMoves(t *testing.T) {
 }
 
 func TestGameOver(t *testing.T) {
-
+    t.Logf("Testing if checking for GameOver is correct on %d boards", len(testCases))
     for i, x := range testCases {
 
-        t.Logf("=> Testing board #%d: %v", i, x.board.Decode())
+        t.Logf("=> test Board #%d: %v", i, x.board.Decode())
 
+        // check for opponent
         forO := x.board.GameOver(false)
         if forO == x.forOpponent {
             t.Logf("OK -- GameOver for Opponent = %t", forO)
@@ -257,8 +259,8 @@ func TestGameOver(t *testing.T) {
             t.Errorf("FAIL -- GameOver for Opponent = %t", forO)
         }
 
+        // check for player
         forP := x.board.GameOver(true)
-
         if forP == x.forPlayer {
             t.Logf("OK -- GameOver for Player = %t", forP)
         } else {
